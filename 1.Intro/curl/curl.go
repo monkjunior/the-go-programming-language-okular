@@ -1,36 +1,52 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 func main() {
+	if len(os.Args) < 3 {
+		fmt.Fprintln(os.Stderr, "Need at least 2 argument <Method> and <URL>")
+		os.Exit(1)
+	}
+	curlAll(os.Args[1], os.Args[2:])
+}
+
+func curlAll(method string, urls []string) {
+	waitChannel := make(chan (string))
+	for _, url := range urls {
+		go curl(method, url, waitChannel)
+	}
+	for _, url := range urls {
+		fmt.Println(url, <-waitChannel)
+	}
+}
+
+func curl(method, url string, waitChannel chan<- string) {
+	now := time.Now()
 	curlClient := http.Client{}
-	if len(os.Args) != 3 {
-		log.Fatalln("Need exact 2 argument <Method> and <URL>")
-	}
-	req2, err := http.NewRequest(os.Args[1], os.Args[2], nil)
+	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
-		log.Fatalln("could not create a request")
+		waitChannel <- fmt.Sprint("could not create a request")
+		return
 	}
 
-	res2, err := curlClient.Do(req2)
+	resp, err := curlClient.Do(req)
 	if err != nil {
-		log.Fatalln(err)
+		waitChannel <- fmt.Sprint("could not execute a request")
+		return
 	}
 
-	data, err := ioutil.ReadAll(res2.Body)
+	data, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
-		log.Fatalln("Could not read response data.")
+		waitChannel <- fmt.Sprint("Could not read response data.")
+		return
 	}
-
-	log.Println(string(data))
-
-	err = res2.Body.Close()
-	if err != nil {
-		panic(err)
-	}
+	secs := time.Since(now)
+	waitChannel <- fmt.Sprintf("received %vKbs response body after %.4f secs", len(data)/1024, secs.Seconds())
 }
