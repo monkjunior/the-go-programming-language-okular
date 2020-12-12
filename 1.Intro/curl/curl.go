@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -41,12 +42,13 @@ func curl(method, url string, waitChannel chan<- string) {
 		return
 	}
 
-	data, err := ioutil.ReadAll(resp.Body)
+	dataSize, err := io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		waitChannel <- fmt.Sprint("Could not read response data.")
+		waitChannel <- fmt.Sprint("Could not count response data size.")
 		return
 	}
+
 	secs := time.Since(now)
-	waitChannel <- fmt.Sprintf("received %vKbs response body after %.4f secs", len(data)/1024, secs.Seconds())
+	waitChannel <- fmt.Sprintf("received %vKbs response body after %.4f secs", dataSize/1024, secs.Seconds())
 }
